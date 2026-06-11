@@ -57,7 +57,7 @@ jobs:
           persist-credentials: false
 
       - name: "Set up Ruby"
-        uses: "ruby/setup-ruby@0cb964fd540e0a24c900370abf38a33466142735" # v1.305.0
+        uses: "ruby/setup-ruby@12fd324f1d0b43274fdc8130f6980590a667c455" # v1.312.0
         with:
           ruby-version: ${{ matrix.ruby }}
 
