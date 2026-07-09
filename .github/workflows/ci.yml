@@ -72,7 +72,7 @@ jobs:
 
       - name: "Upload coverage to Qlty"
         if: matrix.ruby == '3.4' && matrix.sidekiq == '= 7' && matrix.rack == '>= 3.1.0'
-        uses: qltysh/qlty-action/coverage@a19242102d17e497f437d7466aa01b528537e899 # v2.2.0
+        uses: qltysh/qlty-action/coverage@dafbc1e328f1f92525f1a3916724bd5fa01498e8 # v2.2.3
         with:
           oidc: true
           files: coverage/.resultset.json
