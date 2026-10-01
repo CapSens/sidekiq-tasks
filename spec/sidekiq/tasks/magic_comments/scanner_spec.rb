@@ -108,6 +108,57 @@ RSpec.describe Sidekiq::Tasks::MagicComments::Scanner do
       expect(names).to include("enable", "sidekiq_options")
     end
 
+    it "captures stacked magic comments placed before the desc", :aggregate_failures do
+      task = instance_double(Rake::Task, name: "dry_run_demo", locations: ["foo.rb:5"], full_comment: "Demo")
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        # sidekiq-tasks:enable
+        # A regular comment
+        # sidekiq-tasks:dry_run
+        desc "Demo"
+        task dry_run_demo: :environment do
+        end
+      RUBY
+
+      result = described_class.new.scan(task)
+
+      expect(result.to_a.map(&:name)).to contain_exactly("enable", "dry_run")
+      expect(result.to_a.map(&:location).uniq).to eq([:desc])
+    end
+
+    it "captures stacked magic comments placed before the namespace" do
+      task = instance_double(Rake::Task, name: "foo:bar", locations: ["foo.rb:4"], full_comment: nil)
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        # sidekiq-tasks:enable
+        # sidekiq-tasks:dry_run
+        namespace :foo do
+          task :bar do
+          end
+        end
+      RUBY
+
+      expect(described_class.new.scan(task).to_a.map(&:name)).to contain_exactly("enable", "dry_run")
+    end
+
+    it "stops the comment block at the first non comment line" do
+      task = instance_double(Rake::Task, name: "foo:bar", locations: ["foo.rb:7"], full_comment: "Bar")
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        # sidekiq-tasks:enable
+        task :other do
+        end
+
+        namespace :foo do
+          desc "Bar"
+          task :bar do
+          end
+        end
+      RUBY
+
+      expect(described_class.new.scan(task).to_a).to be_empty
+    end
+
     it "raises an error when the file is not found" do
       task = instance_double(Rake::Task, name: "foo:bar", locations: ["missing.rb:2"], full_comment: nil)
 

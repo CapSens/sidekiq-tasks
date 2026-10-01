@@ -34,7 +34,7 @@ module Sidekiq
           end
           return unless namespace_line_index
 
-          capture_at_index(lines, namespace_line_index - 1, :namespace, captured)
+          capture_comment_block(lines, namespace_line_index - 1, :namespace, captured)
         end
 
         def capture_desc_comment(lines, task_line, desc, captured)
@@ -43,7 +43,7 @@ module Sidekiq
           desc_line_index = lines[0...task_line].rindex { |line| line.strip.match?(/^desc\b/) }
           return unless desc_line_index
 
-          capture_at_index(lines, desc_line_index - 1, :desc, captured)
+          capture_comment_block(lines, desc_line_index - 1, :desc, captured)
         end
 
         def capture_task_comments(lines, task_line, captured)
@@ -52,6 +52,14 @@ module Sidekiq
             next if captured.key?(i)
 
             capture_at_index(lines, i, :task, captured)
+          end
+        end
+
+        def capture_comment_block(lines, index, location, captured)
+          index.downto(0) do |i|
+            break unless lines[i].strip.start_with?("#")
+
+            capture_at_index(lines, i, location, captured) unless captured.key?(i)
           end
         end
 
