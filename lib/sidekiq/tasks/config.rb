@@ -1,3 +1,5 @@
+require "sidekiq"
+
 module Sidekiq
   module Tasks
     class Config
@@ -19,9 +21,14 @@ module Sidekiq
 
       DEFAULT_HISTORY_LIMIT = 10
 
+      DEFAULT_REPORT_MAX_BYTES = 64 * 1024
+
+      REPORT_MAX_BYTES_LIMIT = 1024 * 1024
+
       include Sidekiq::Tasks::Validations
 
-      attr_reader :strategies, :sidekiq_options, :authorization, :history_limit, :current_user, :storage
+      attr_reader :strategies, :sidekiq_options, :authorization, :history_limit, :current_user, :storage,
+                  :report_max_bytes
 
       def initialize
         @sidekiq_options = DEFAULT_SIDEKIQ_OPTIONS
@@ -30,6 +37,7 @@ module Sidekiq
         @authorization = ->(_env) { true }
         @history_limit = DEFAULT_HISTORY_LIMIT
         @current_user = nil
+        @report_max_bytes = DEFAULT_REPORT_MAX_BYTES
       end
 
       # @see https://github.com/sidekiq/sidekiq/wiki/Advanced-Options#jobs
@@ -59,6 +67,14 @@ module Sidekiq
         @history_limit = limit
       end
 
+      def report_max_bytes=(max_bytes)
+        validate_class!(max_bytes, [Integer], "report_max_bytes")
+
+        raise Sidekiq::Tasks::ArgumentError, "'report_max_bytes' must be greater than 0" if max_bytes <= 0
+
+        @report_max_bytes = bounded(max_bytes, REPORT_MAX_BYTES_LIMIT, "report_max_bytes")
+      end
+
       def authorization=(authorization_proc)
         validate_class!(authorization_proc, [Proc], "authorization")
 
@@ -69,6 +85,16 @@ module Sidekiq
         validate_class!(current_user_proc, [Proc], "current_user")
 
         @current_user = current_user_proc
+      end
+
+      private
+
+      # A too large value never prevents the application from starting: it is lowered to the limit.
+      def bounded(value, limit, name)
+        return value if value <= limit
+
+        Sidekiq.logger.warn("[sidekiq-tasks] '#{name}' (#{value}) exceeds the maximum, using #{limit}")
+        limit
       end
     end
   end

@@ -14,6 +14,8 @@ module Sidekiq
   module Tasks
     autoload :Config, "sidekiq/tasks/config"
     autoload :Job, "sidekiq/tasks/job"
+    autoload :Report, "sidekiq/tasks/run"
+    autoload :Run, "sidekiq/tasks/run"
     autoload :Set, "sidekiq/tasks/set"
     autoload :Task, "sidekiq/tasks/task"
     autoload :TaskMetadata, "sidekiq/tasks/task_metadata"
@@ -33,6 +35,19 @@ module Sidekiq
 
       def tasks
         @_tasks ||= Sidekiq::Tasks::Set.new(strategies.flat_map(&:tasks))
+      end
+
+      # @return [Sidekiq::Tasks::Run] The run of the task being executed, see Sidekiq::Tasks::Run.current.
+      def current_run
+        Sidekiq::Tasks::Run.current
+      end
+
+      def dry_run?
+        current_run.dry_run?
+      end
+
+      def report
+        current_run.report
       end
     end
   end
