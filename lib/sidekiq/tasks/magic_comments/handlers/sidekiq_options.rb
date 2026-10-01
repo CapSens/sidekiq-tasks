@@ -12,7 +12,10 @@ module Sidekiq
           def self.cast(raw_value)
             return {} if raw_value.nil? || raw_value.strip.empty?
 
-            parse_yaml(raw_value)
+            options = parse_yaml(raw_value)
+            # Unknown keys are passed as is to Sidekiq, for middleware options such as sidekiq-unique-jobs locks.
+            Sidekiq::Tasks::SidekiqOptionsValidator.validate!(options, allow_partial: true)
+            options
           end
 
           def self.parse_yaml(raw_value)

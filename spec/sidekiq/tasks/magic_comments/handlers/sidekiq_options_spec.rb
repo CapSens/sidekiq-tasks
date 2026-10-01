@@ -42,5 +42,17 @@ RSpec.describe Sidekiq::Tasks::MagicComments::Handlers::SidekiqOptions do
     it "accepts unknown keys without raising" do
       expect(described_class.cast("whatever: yolo")).to eq(whatever: "yolo")
     end
+
+    it "passes middleware options such as sidekiq-unique-jobs locks" do
+      expect(described_class.cast("queue: low, lock: until_executed")).to eq(queue: "low", lock: "until_executed")
+    end
+
+    it "rejects supported keys with an invalid type", :aggregate_failures do
+      expect { described_class.cast("retry: abc") }.to raise_error(
+        Sidekiq::Tasks::ArgumentError,
+        "'retry' must be an instance of NilClass or TrueClass or FalseClass or Integer but received String"
+      )
+      expect { described_class.cast("queue: 42") }.to raise_error(Sidekiq::Tasks::ArgumentError, /'queue' must be an instance of String/)
+    end
   end
 end
