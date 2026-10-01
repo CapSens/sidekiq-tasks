@@ -210,12 +210,13 @@ end
 ```
 
 The value is parsed as inline YAML and merged on top of the global `config.sidekiq_options` at enqueue time. Supported keys: `queue`, `retry`, `retry_for`, `dead`, `backtrace`, `pool`, `tags`.
+These keys are validated: an invalid value (e.g. `retry: abc`) displays the task as broken in the web interface, and it cannot be enqueued. Other keys are passed as is to Sidekiq, e.g. middleware options such as sidekiq-unique-jobs `lock: until_executed`.
 
 You can also override the `enqueue_task` method to implement your own enqueuing logic for your strategy:
 
 ```ruby
 class ScriptStrategy < Sidekiq::Tasks::Strategies::Base
-  def enqueue_task(name, params = {}, sidekiq_options: {})
+  def enqueue_task(name, params = {}, sidekiq_options: {}, dry_run: false)
     ScriptJob.perform_async(name, params)
   end
 end
@@ -256,6 +257,85 @@ end
 ```
 
 You can also use a custom storage backend. See the [Custom Storage Guide](docs/custom_storage.md) for more details.
+
+## Dry run and reports
+
+Inside a task, `Sidekiq::Tasks.dry_run?` tells whether the task runs in dry run mode and `Sidekiq::Tasks.report` gives access to a structured report:
+
+```ruby
+# sidekiq-tasks:enable
+# sidekiq-tasks:dry_run
+task :sync_users => :environment do
+  User.find_each do |user|
+    Sync.call(user) unless Sidekiq::Tasks.dry_run?
+    Sidekiq::Tasks.report.increment(:success)
+  rescue => e
+    Sidekiq::Tasks.report.increment(:errors)
+    Sidekiq::Tasks.report.add(:failed, id: user.id, email: user.email, error: e.message)
+  end
+end
+```
+
+Both are shortcuts for `Sidekiq::Tasks.current_run.dry_run?` and `Sidekiq::Tasks.current_run.report`.
+
+### Dry run
+
+Dry run mode lets a user check what a task would do before running it for real, typically together with a [report](#report) of the rows it would process.
+
+**What the gem does:**
+
+- detects tasks declaring the `sidekiq-tasks:dry_run` magic comment. Like `enable`, it can be placed before the task, its `desc` or its `namespace`, stacked with other magic comments,
+- displays a **Dry run** checkbox on these tasks, checked by default: the user has to uncheck it to execute the task for real. Other tasks display a warning stating that they will be executed for real,
+- passes the choice to the Sidekiq job, where `Sidekiq::Tasks.dry_run?` returns it,
+- flags dry runs with a badge in the task history.
+
+**What the developer does:**
+
+- adds the `sidekiq-tasks:dry_run` magic comment to the tasks that support dry run mode,
+- skips every side effect when `Sidekiq::Tasks.dry_run?` is `true`: database writes, emails, API calls, file uploads, enqueued jobs...,
+- keeps the rest of the task running (queries, validations, computations), so that the dry run reflects what the real run would do,
+- optionally fills the report, so that the dry run result shows up in the web interface.
+
+> [!WARNING]
+> The gem never skips anything by itself: a task declaring the magic comment without checking `Sidekiq::Tasks.dry_run?` executes all of its side effects, even when the checkbox is checked.
+
+Outside of the web interface (e.g. `rake sync_users` in a terminal), `dry_run?` is `false`.
+Both `dry_run?` and `report` are optional: a task can use the report without dry run mode, and existing tasks keep working unchanged.
+
+### Report
+
+- `report[:key] = value` sets a summary value.
+- `report.increment(:key)` increments a counter.
+- `report.add(:key, item)` adds an item (a scalar or a flat Hash) to a list. Hash items are displayed as a table whose columns are the hash keys.
+
+Keys are free: use as many lists as needed (`:synced`, `:skipped`, `:failed`...). Values are displayed in the history table, lists in a collapsible section below it (the latest execution is expanded). The report is stored whether the task runs in dry run mode or not, and also when it fails.
+
+Numbers, booleans and `nil` are kept as is, other values are converted to strings: pass the useful attributes of an object (`{id: user.id, email: user.email}`) rather than the object itself, and prefer one list per key to nested structures.
+
+The report is stored with the execution history, so its size is bounded by `report_max_bytes` (default: 64 KB, maximum: 1 MB):
+
+```ruby
+Sidekiq::Tasks.configure do |config|
+  config.report_max_bytes = 256 * 1024
+end
+```
+
+- a value above the maximum does not prevent the application from starting: it is lowered to the maximum and a warning is logged,
+- when the report exceeds it, the last items of the longest lists are dropped and the report is flagged as truncated in the web interface, the counts remain exact,
+- with the Redis storage, the reports of a task history never exceed 10 MB: with a large `history_limit`, the size of each report is lowered accordingly (`10 MB / history_limit`),
+- strings are truncated to 255 characters, so that a single long message does not fill the whole report,
+- at most 50 values, 50 lists and 50 keys per item, guarding against keys built from the data,
+- while the task runs, items stop being kept beyond 4 times the report size, so that the worker memory stays bounded.
+
+The report never makes a task fail. Outside of a Sidekiq::Tasks job, it is printed as JSON when the process exits.
+
+> [!TIP]
+> For large or complex reports, prefer a database storage (see the [Custom Storage Guide](docs/custom_storage.md)) over Redis: reports are kept in the database instead of Redis memory, and are not lowered by the 10 MB budget of the Redis storage.
+
+> [!NOTE]
+> Custom strategies enable dry run mode by building their metadata with `dry_run: true`.
+> Those overriding `enqueue_task` must accept a `dry_run:` keyword argument and pass it to `Sidekiq::Tasks::Job` as its third argument.
+> Custom storages display the dry run badge and reports by implementing `store_dry_run` and `store_execution_report`, see the [Custom Storage Guide](docs/custom_storage.md).
 
 ## Current user
 
