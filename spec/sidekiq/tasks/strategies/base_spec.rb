@@ -29,7 +29,7 @@ RSpec.describe Sidekiq::Tasks::Strategies::Base do
   describe "#enqueue_task" do
     it "enqueues a task with the given name and json params, and returns the JID", :aggregate_failures do
       name, params = ["foo:bar", {"bar" => "baz"}]
-      expect(Sidekiq::Tasks::Job).to receive(:perform_async).with(name, params.to_json).and_return("a1b2c3")
+      expect(Sidekiq::Tasks::Job).to receive(:perform_async).with(name, params.to_json, false).and_return("a1b2c3")
       expect(described_class.new.enqueue_task(name, params)).to eq("a1b2c3")
     end
 
@@ -37,16 +37,22 @@ RSpec.describe Sidekiq::Tasks::Strategies::Base do
       name, params, opts = ["foo:bar", {"bar" => "baz"}, {queue: "critical", retry: 5}]
       configurator = double("configurator")
       expect(Sidekiq::Tasks::Job).to receive(:set).with(opts).and_return(configurator)
-      expect(configurator).to receive(:perform_async).with(name, params.to_json).and_return("a1b2c3")
+      expect(configurator).to receive(:perform_async).with(name, params.to_json, false).and_return("a1b2c3")
 
       expect(described_class.new.enqueue_task(name, params, sidekiq_options: opts)).to eq("a1b2c3")
     end
 
     it "uses Job.perform_async directly when sidekiq_options is empty" do
       expect(Sidekiq::Tasks::Job).not_to receive(:set)
-      expect(Sidekiq::Tasks::Job).to receive(:perform_async).with("foo", "{}")
+      expect(Sidekiq::Tasks::Job).to receive(:perform_async).with("foo", "{}", false)
 
       described_class.new.enqueue_task("foo", {}, sidekiq_options: {})
+    end
+
+    it "enqueues a task in dry run mode" do
+      name, params = ["foo:bar", {"bar" => "baz"}]
+      expect(Sidekiq::Tasks::Job).to receive(:perform_async).with(name, params.to_json, true).and_return("a1b2c3")
+      expect(described_class.new.enqueue_task(name, params, dry_run: true)).to eq("a1b2c3")
     end
   end
 

@@ -33,6 +33,12 @@ RSpec.describe Sidekiq::Tasks::TaskMetadata do
       expect { build_task_metadata(sidekiq_options: "foo") }.to raise_error(Sidekiq::Tasks::ArgumentError)
     end
 
+    it "accepts a boolean as dry_run", :aggregate_failures do
+      expect(build_task_metadata.dry_run?).to eq(false)
+      expect(build_task_metadata(dry_run: true).dry_run?).to eq(true)
+      expect { build_task_metadata(dry_run: "true") }.to raise_error(Sidekiq::Tasks::ArgumentError)
+    end
+
     it "accepts a string or nil as error", :aggregate_failures do
       expect(build_task_metadata(error: nil).error).to be_nil
       expect(build_task_metadata(error: "boom").error).to eq("boom")

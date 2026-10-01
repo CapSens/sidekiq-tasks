@@ -36,6 +36,21 @@ RSpec.describe Sidekiq::Tasks::Strategies::RakeTask do
       expect(metadata.file).to eq("foo.rb")
       expect(metadata.args).to eq(["bar"])
       expect(metadata.sidekiq_options).to eq({})
+      expect(metadata.dry_run?).to eq(false)
+    end
+
+    it "enables dry run from a magic comment" do
+      rake_task = build_rake_task(name: "foo:bar", full_comment: nil, locations: ["foo.rb:3"], arg_names: [])
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        namespace :foo do
+          # sidekiq-tasks:dry_run
+          task :bar do
+          end
+        end
+      RUBY
+
+      expect(described_class.new.build_task_metadata(rake_task).dry_run?).to eq(true)
     end
 
     it "extracts sidekiq_options from a magic comment", :aggregate_failures do

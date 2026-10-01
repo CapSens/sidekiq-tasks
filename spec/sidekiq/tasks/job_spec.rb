@@ -10,8 +10,16 @@ RSpec.describe Sidekiq::Tasks::Job do
       task = build_task(name: "foo:bar", args: ["baz"])
       expect(Sidekiq::Tasks).to receive(:tasks).and_return(Sidekiq::Tasks::Set.new([task]))
       expect(job).to receive(:jid).and_return("a1b2c3")
-      expect(task).to receive(:execute).with({baz: "qux"}, jid: "a1b2c3")
+      expect(task).to receive(:execute).with({baz: "qux"}, jid: "a1b2c3", dry_run: false)
       perform
+    end
+
+    it "executes the task in dry run mode when requested" do
+      task = build_task(name: "foo:bar", args: ["baz"])
+      expect(Sidekiq::Tasks).to receive(:tasks).and_return(Sidekiq::Tasks::Set.new([task]))
+      expect(job).to receive(:jid).and_return("a1b2c3")
+      expect(task).to receive(:execute).with({baz: "qux"}, jid: "a1b2c3", dry_run: true)
+      job.perform("foo:bar", "{\"baz\":\"qux\"}", true)
     end
 
     it "raises an error if the task is not found", :aggregate_failures do

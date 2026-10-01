@@ -1,0 +1,70 @@
+:root {
+  --badge-dry-run-text: #5b3a8c;
+  --badge-dry-run-bg: #efe6fb;
+  --badge-dry-run-border: #d3c0f0;
+  --st-warning-text: #8a6d1d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --badge-dry-run-text: #d3c0f0;
+    --badge-dry-run-bg: #2c2140;
+    --badge-dry-run-border: #5b3a8c;
+    --st-warning-text: #f5e6ab;
+  }
+}
+
+.st-status-badge.dry-run {
+  color: var(--badge-dry-run-text);
+  background-color: var(--badge-dry-run-bg);
+  border-color: var(--badge-dry-run-border);
+}
+
+.st-report-value {
+  margin-right: 12px;
+  white-space: nowrap;
+}
+
+.st-report-row details {
+  padding: 4px 0 8px;
+}
+
+.st-report-row summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.st-report-row summary::-webkit-details-marker {
+  display: none;
+}
+
+.st-report-row summary::before {
+  content: "▸ ";
+}
+
+.st-report-row details[open] > summary::before {
+  content: "▾ ";
+}
+
+.st-report-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.st-report-table {
+  margin: 0;
+}
+
+.st-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.st-warning {
+  color: var(--st-warning-text);
+  margin: 0;
+}

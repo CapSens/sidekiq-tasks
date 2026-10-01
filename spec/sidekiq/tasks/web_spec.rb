@@ -118,13 +118,35 @@ RSpec.describe "Sidekiq::Tasks::Web", type: :request do
     it "enqueues the task with permitted params and redirects to the task", :aggregate_failures do
       task = build_task(name: "foo:bar", args: ["bar"])
       expect(Sidekiq::Tasks.tasks).to receive(:find_by!).twice.and_return(task) # twice because of redirect
-      expect(task).to receive(:enqueue).with({"bar" => "baz"}, user: nil)
+      expect(task).to receive(:enqueue).with({"bar" => "baz"}, user: nil, dry_run: false)
 
       post "/tasks/foo-bar/enqueue", {"name" => "foo", "args" => {"bar" => "baz"}, "env_confirmation" => "development"}
 
       expect(last_response).to be_redirect
       follow_redirect!
       expect(last_request.path).to eq("/tasks/foo-bar")
+    end
+
+    it "enqueues the task in dry run mode when requested and supported", :aggregate_failures do
+      task = build_task(name: "foo:bar", args: ["bar"])
+      allow(task).to receive(:dry_run_supported?).and_return(true)
+      expect(Sidekiq::Tasks.tasks).to receive(:find_by!).at_least(:once).and_return(task)
+      expect(task).to receive(:enqueue).with({"bar" => "baz"}, user: nil, dry_run: true)
+
+      post "/tasks/foo-bar/enqueue", {"args" => {"bar" => "baz"}, "dry_run" => "1", "env_confirmation" => "development"}
+
+      expect(last_response).to be_redirect
+    end
+
+    it "ignores the dry run param when the task does not support it", :aggregate_failures do
+      task = build_task(name: "foo:bar", args: ["bar"])
+      allow(task).to receive(:dry_run_supported?).and_return(false)
+      expect(Sidekiq::Tasks.tasks).to receive(:find_by!).at_least(:once).and_return(task)
+      expect(task).to receive(:enqueue).with({"bar" => "baz"}, user: nil, dry_run: false)
+
+      post "/tasks/foo-bar/enqueue", {"args" => {"bar" => "baz"}, "dry_run" => "1", "env_confirmation" => "development"}
+
+      expect(last_response).to be_redirect
     end
 
     it "returns a 400 error when confirm param is invalid", :aggregate_failures do
@@ -156,7 +178,7 @@ RSpec.describe "Sidekiq::Tasks::Web", type: :request do
 
       task = build_task(name: "foo:bar", args: ["bar"])
       expect(Sidekiq::Tasks.tasks).to receive(:find_by!).at_least(:once).and_return(task)
-      expect(task).to receive(:enqueue).with({"bar" => "baz"}, user: current_user_result)
+      expect(task).to receive(:enqueue).with({"bar" => "baz"}, user: current_user_result, dry_run: false)
 
       post "/tasks/foo-bar/enqueue", {"name" => "foo", "args" => {"bar" => "baz"}, "env_confirmation" => "development"}
 
@@ -168,7 +190,7 @@ RSpec.describe "Sidekiq::Tasks::Web", type: :request do
 
       task = build_task(name: "foo:bar", args: ["bar"])
       expect(Sidekiq::Tasks.tasks).to receive(:find_by!).at_least(:once).and_return(task)
-      expect(task).to receive(:enqueue).with({"bar" => "baz"}, user: nil)
+      expect(task).to receive(:enqueue).with({"bar" => "baz"}, user: nil, dry_run: false)
 
       post "/tasks/foo-bar/enqueue", {"name" => "foo", "args" => {"bar" => "baz"}, "env_confirmation" => "development"}
 

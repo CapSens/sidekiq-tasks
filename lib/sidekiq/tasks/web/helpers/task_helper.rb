@@ -36,6 +36,13 @@ module Sidekiq
             end
           end
 
+          # Returns the table columns for a report list: the keys of Hash items, or nil for scalar items.
+          def report_list_columns(items)
+            return nil unless items.any? && items.all?(Hash)
+
+            items.flat_map(&:keys).uniq
+          end
+
           def format_task_duration(start_time, end_time)
             return "-" unless start_time && end_time
 

@@ -17,16 +17,12 @@ module Sidekiq
           Sidekiq::Tasks::TaskMetadata.new(
             name: task.name,
             desc: task.full_comment,
-            file: task.locations.first.split(":").first,
+            file: task_file(task),
             args: task.arg_names,
-            sidekiq_options: extract_sidekiq_options(task)
+            **magic_comment_options(task)
           )
         rescue Sidekiq::Tasks::ArgumentError => e
-          Sidekiq::Tasks::TaskMetadata.new(
-            name: task.name,
-            file: task.locations.first&.split(":")&.first,
-            error: e.message
-          )
+          Sidekiq::Tasks::TaskMetadata.new(name: task.name, file: task_file(task), error: e.message)
         end
 
         def execute_task(name, args = nil)
@@ -35,11 +31,18 @@ module Sidekiq
 
         private
 
-        def extract_sidekiq_options(task)
-          @scanner.scan(task).fetch(
-            Sidekiq::Tasks::MagicComments::Handlers::SidekiqOptions.name_token,
-            default: {}
-          )
+        def task_file(task)
+          task.locations.first&.split(":")&.first
+        end
+
+        def magic_comment_options(task)
+          comments = @scanner.scan(task)
+          handlers = Sidekiq::Tasks::MagicComments::Handlers
+
+          {
+            sidekiq_options: comments.fetch(handlers::SidekiqOptions.name_token, default: {}),
+            dry_run: comments.any?(handlers::DryRun.name_token),
+          }
         end
       end
     end

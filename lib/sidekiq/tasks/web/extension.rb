@@ -62,7 +62,8 @@ module Sidekiq
             args = Sidekiq::Tasks::Web::Params.new(task, fetch_param("args")).permit!
 
             current_user = Sidekiq::Tasks.config.current_user&.call(env)
-            task.enqueue(args, user: current_user)
+            dry_run = task.dry_run_supported? && fetch_param("dry_run") == "1"
+            task.enqueue(args, user: current_user, dry_run: dry_run)
 
             redirect(task_url(root_path, task))
           rescue Sidekiq::Tasks::ArgumentError => e
