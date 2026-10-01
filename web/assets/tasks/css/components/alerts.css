@@ -1,0 +1,25 @@
+.st-alert {
+  display: block;
+  padding: 12px 16px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.st-alert.failure {
+  color: var(--badge-failure-text);
+  background-color: var(--badge-failure-bg);
+  border-color: var(--badge-failure-border);
+}
+
+.st-alert-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.st-alert-body code {
+  display: inline-block;
+  word-break: break-all;
+}

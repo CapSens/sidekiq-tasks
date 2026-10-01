@@ -26,6 +26,7 @@ Metrics/MethodLength:
 Metrics/ParameterLists:
   Exclude:
     - spec/**/*
+    - lib/sidekiq/tasks/task_metadata.rb
 
 Metrics/PerceivedComplexity:
   Exclude:
@@ -40,6 +41,9 @@ Naming/MemoizedInstanceVariableName:
 
 Style/Documentation:
   Enabled: false
+
+Style/EmptyMethod:
+  EnforcedStyle: expanded
 
 Style/FrozenStringLiteralComment:
   Enabled: false

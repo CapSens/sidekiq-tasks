@@ -51,9 +51,12 @@ module Sidekiq
         #
         # @param name [String] The name of the task to enqueue.
         # @param params [Hash] Parameters to pass to the task.
+        # @param sidekiq_options [Hash] Per-task Sidekiq options that override class-level defaults.
+        # @param dry_run [Boolean] Whether the task must be executed in dry run mode.
         # @return [String] The JID of the sidekiq job that will execute the task.
-        def enqueue_task(name, params = {})
-          Sidekiq::Tasks::Job.perform_async(name, params.to_json)
+        def enqueue_task(name, params = {}, sidekiq_options: {}, dry_run: false)
+          job = sidekiq_options.empty? ? Sidekiq::Tasks::Job : Sidekiq::Tasks::Job.set(sidekiq_options)
+          job.perform_async(name, params.to_json, dry_run)
         end
 
         # Returns all the tasks that should be executed.

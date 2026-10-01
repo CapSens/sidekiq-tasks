@@ -3,6 +3,10 @@ module Sidekiq
     module Storage
       class Redis < Base
         JID_PREFIX = "task".freeze
+
+        # Maximum size of the reports stored in the history of a task, whatever the history_limit.
+        TASK_REPORTS_BUDGET = 10 * 1024 * 1024
+
         def jid_key
           "#{JID_PREFIX}:#{task_name}"
         end
@@ -55,6 +59,18 @@ module Sidekiq
             error_message = truncate_message("#{error.class}: #{error.message}", ERROR_MESSAGE_MAX_LENGTH)
             entry.merge("error" => error_message)
           end
+        end
+
+        def store_dry_run(jid)
+          update_history_entry(jid) { |entry| entry.merge("dry_run" => true) }
+        end
+
+        def store_execution_report(jid, report)
+          update_history_entry(jid) { |entry| entry.merge("report" => report) }
+        end
+
+        def report_max_bytes
+          [super, TASK_REPORTS_BUDGET / history_limit].min
         end
 
         private

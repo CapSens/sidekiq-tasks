@@ -6,8 +6,9 @@ module Sidekiq
       extend Forwardable
       include Sidekiq::Tasks::Validations
 
-      def_delegators :metadata, :name, :desc, :file, :args
+      def_delegators :metadata, :name, :desc, :file, :args, :sidekiq_options, :error, :error?
       def_delegators :storage, :last_enqueue_at, :history
+      def_delegator :metadata, :dry_run?, :dry_run_supported?
 
       attr_reader :metadata, :strategy
 
@@ -22,28 +23,40 @@ module Sidekiq
         validate_class!(strategy, [Sidekiq::Tasks::Strategies::Base], "strategy")
       end
 
-      def enqueue(params = {}, user: nil)
-        jid = strategy.enqueue_task(name, params)
+      def enqueue(params = {}, user: nil, dry_run: false)
+        raise Sidekiq::Tasks::ArgumentError, "cannot enqueue broken task '#{name}': #{error}" if error?
+
+        jid = strategy.enqueue_task(name, params, sidekiq_options: sidekiq_options, dry_run: dry_run)
 
         storage.store_enqueue(jid, params, user: user)
+        storage.store_dry_run(jid) if dry_run
       end
 
-      def execute(params = {}, jid: nil)
+      def execute(params = {}, jid: nil, dry_run: false)
+        run = Sidekiq::Tasks::Run.new(dry_run: dry_run, report_max_bytes: storage.report_max_bytes)
         storage.store_execution(jid, "executed_at")
 
         begin
-          strategy.execute_task(name, params)
+          Sidekiq::Tasks::Run.with(run) { strategy.execute_task(name, params) }
         rescue StandardError, SystemExit => e
-          storage.store_execution(jid, "finished_at")
+          finish_execution(jid, run)
           storage.store_execution_error(jid, e)
           raise
         end
 
-        storage.store_execution(jid, "finished_at")
+        finish_execution(jid, run)
       end
 
       def storage
         @_storage ||= Sidekiq::Tasks.config.storage.new(name, history_limit: Sidekiq::Tasks.config.history_limit)
+      end
+
+      private
+
+      # The report is stored before finished_at so that it is displayed as soon as the execution appears finished.
+      def finish_execution(jid, run)
+        storage.store_execution_report(jid, run.report.to_h) unless run.report.empty?
+        storage.store_execution(jid, "finished_at")
       end
     end
   end

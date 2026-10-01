@@ -219,6 +219,45 @@ RSpec.describe Sidekiq::Tasks::Config do
     end
   end
 
+  describe "report limits" do
+    it "lowers a too large report_max_bytes to the limit, with a warning", :aggregate_failures do
+      config = described_class.new
+      expect(Sidekiq.logger).to receive(:warn).with(/'report_max_bytes' \(10485760\) exceeds the maximum, using 1048576/)
+
+      config.report_max_bytes = 10 * 1024 * 1024
+
+      expect(config.report_max_bytes).to eq(1024 * 1024)
+    end
+
+    it "does not warn for values within the limits" do
+      expect(Sidekiq.logger).not_to receive(:warn)
+
+      config = described_class.new
+      config.report_max_bytes = 1024 * 1024
+    end
+  end
+
+  describe "#report_max_bytes=" do
+    it "defaults to 64 KB" do
+      expect(described_class.new.report_max_bytes).to eq(65_536)
+    end
+
+    it "sets the report max bytes" do
+      config = described_class.new
+      config.report_max_bytes = 1024
+      expect(config.report_max_bytes).to eq(1024)
+    end
+
+    it "raises an error when the report max bytes is invalid", :aggregate_failures do
+      expect { described_class.new.report_max_bytes = "10" }.to(
+        raise_error(Sidekiq::Tasks::ArgumentError, "'report_max_bytes' must be an instance of Integer but received String")
+      )
+      expect { described_class.new.report_max_bytes = 0 }.to(
+        raise_error(Sidekiq::Tasks::ArgumentError, "'report_max_bytes' must be greater than 0")
+      )
+    end
+  end
+
   describe "#history_limit=" do
     it "defaults to 10" do
       expect(described_class.new.history_limit).to eq(10)

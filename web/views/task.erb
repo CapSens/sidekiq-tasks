@@ -14,6 +14,17 @@
   <h1><%= t("task") %></h1>
 </header>
 
+<% if task.error? %>
+  <div class="st-alert failure">
+    <div class="st-alert-title"><%= t("task_broken_title") %></div>
+    <div class="st-alert-body">
+      <%= t("task_broken_message") %>
+      <br>
+      <code><%= task.error %></code>
+    </div>
+  </div>
+<% end %>
+
 <table class="st-table">
   <tbody>
     <tr>
@@ -28,6 +39,12 @@
       <th><%= t("strategy") %></th>
       <td><%= task.strategy.name %></td>
     </tr>
+    <% unless task.error? || task.sidekiq_options.empty? %>
+      <tr>
+        <th><%= t("options") %></th>
+        <td><code><%= format_task_sidekiq_options(task) %></code></td>
+      </tr>
+    <% end %>
     <tr>
       <th><%= t("last_enqueued") %></th>
       <td><%= task.last_enqueue_at ? relative_time(task.last_enqueue_at) : "-" %></td>
@@ -57,10 +74,12 @@
         <th><%= t("executed") %></th>
         <th><%= t("duration") %></th>
         <th><%= t("status") %></th>
+        <th><%= t("result") %></th>
       </tr>
       </thead>
       <tbody>
-        <% history_entries.each do |jid_history| %>
+        <% history_entries.each_with_index do |jid_history, index| %>
+          <% report = jid_history["report"] || {} %>
           <tr>
             <td><%= jid_history["jid"] %></td>
             <td>
@@ -87,8 +106,57 @@
                 class: "st-status-badge #{task_status(jid_history)}",
                 "data-tooltip": jid_history["error"]
               ) %>
+              <% if jid_history["dry_run"] %>
+                <span class="st-status-badge dry-run"><%= t("dry_run") %></span>
+              <% end %>
+            </td>
+            <td class="st-report-values">
+              <% (report["values"] || {}).each do |key, value| %>
+                <span class="st-report-value"><strong><%= key %></strong> <%= value %></span>
+              <% end %>
+              <% if report["truncated"] %>
+                <small class="st-warning"><%= t("report_truncated") %></small>
+              <% end %>
             </td>
           </tr>
+          <% if report["lists"]&.any? %>
+            <tr class="st-report-row">
+              <td colspan="<%= Sidekiq::Tasks.config.current_user ? 8 : 7 %>">
+                <details <%= "open" if index.zero? && history_page == 1 %>>
+                  <summary><%= t("report_details") %></summary>
+                  <% report["lists"].each do |key, list| %>
+                    <% columns = report_list_columns(list["items"]) %>
+                    <h4>
+                      <%= key %> (<%= list["count"] %>)
+                      <% if list["items"].size < list["count"] %>
+                        <small><%= t("report_items_shown", shown: list["items"].size, count: list["count"]) %></small>
+                      <% end %>
+                    </h4>
+                    <div class="st-report-list">
+                    <table class="st-table st-report-table">
+                      <% if columns %>
+                        <thead>
+                          <tr><% columns.each do |column| %><th><%= column %></th><% end %></tr>
+                        </thead>
+                      <% end %>
+                      <tbody>
+                        <% list["items"].each do |item| %>
+                          <tr>
+                            <% if columns %>
+                              <% columns.each do |column| %><td><%= item[column] %></td><% end %>
+                            <% else %>
+                              <td><%= item %></td>
+                            <% end %>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                    </table>
+                    </div>
+                  <% end %>
+                </details>
+              </td>
+            </tr>
+          <% end %>
         <% end %>
       </tbody>
     </table>
@@ -106,6 +174,7 @@
   <% end %>
 </div>
 
+<% unless task.error? %>
 <header class="">
   <div class="">
     <h2><%= t("run_task") %></h2>
@@ -121,6 +190,18 @@
         <label for="<%= arg %>" class="st-label"><%= arg %></label>
         <input type="text" id="<%= arg %>" class="st-input" name="args[<%= arg %>]" autocomplete="off">
       </div>
+    <% end %>
+  </div>
+
+  <div class="st-form-group-full">
+    <% if task.dry_run_supported? %>
+      <label class="st-checkbox-label">
+        <input type="checkbox" id="dryRunInput" name="dry_run" value="1" checked>
+        <%= t("dry_run") %>
+      </label>
+      <small><%= t("dry_run_hint") %></small>
+    <% else %>
+      <p class="st-warning"><%= t("dry_run_unsupported") %></p>
     <% end %>
   </div>
 
@@ -143,6 +224,7 @@
     <%= t("enqueue") %>
   </button>
 </form>
+<% end %>
 
 <% if Sidekiq::Tasks::Web::SIDEKIQ_GTE_7_3_0 %>
   <%= script_tag "tasks/js/env_confirmation.js" %>
