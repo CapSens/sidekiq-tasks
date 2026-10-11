@@ -53,7 +53,7 @@ RSpec.describe Sidekiq::Tasks::Web::Helpers::PaginationHelper do
     it "appends page with & when base_url already has query params" do
       link = {page: 2, text: "2"}
       base_url = "/sidekiq/tasks?filter=foo&count=10"
-      expected = %(<li class="st-page-item"><a class="st-page-link" href="#{base_url}&page=2">2</a></li>)
+      expected = %(<li class="st-page-item"><a class="st-page-link" href="/sidekiq/tasks?filter=foo&amp;count=10&amp;page=2">2</a></li>)
 
       expect(described_class.build_pagination_link(link, base_url)).to eq(expected)
     end

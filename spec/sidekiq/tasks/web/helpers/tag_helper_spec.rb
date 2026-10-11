@@ -10,6 +10,12 @@ RSpec.describe Sidekiq::Tasks::Web::Helpers::TagHelper do
       expect(described_class.build_tag(:span, class: "foo") { "Hello" }).to eq("<span class=\"foo\">Hello</span>")
     end
 
+    it "escapes the attribute values" do
+      tag = described_class.build_tag(:span, "Failure", "data-tooltip": '" onmouseover="alert(1)')
+
+      expect(tag).to eq('<span data-tooltip="&quot; onmouseover=&quot;alert(1)">Failure</span>')
+    end
+
     it "works with nested tags" do
       tag = described_class.build_tag(:div) { described_class.build_tag(:span, "Hello") }
       expect(tag).to eq("<div><span>Hello</span></div>")

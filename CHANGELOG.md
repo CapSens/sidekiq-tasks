@@ -1,5 +1,9 @@
 ## Changelog
 
+### [Unreleased]
+
+- Escape task arguments, enqueuing user and error message in the task history.
+
 ### [1.1.1] - 2026-04-12
 
 - Transfer repository ownership to Capsens organization.
