@@ -9,6 +9,7 @@
 - Add structured execution reports (`Sidekiq::Tasks.report`) displayed in the task history.
 - Add a configurable `report_max_bytes` option (default: 64 KB, maximum: 1 MB) bounding the report size. The Redis storage also keeps the reports of a task history within 10 MB.
 - Fix detection of stacked magic comments placed before a `desc` or a `namespace`.
+- Fix magic comments leaking to a neighbour task or a similarly named namespace, and support nested namespaces.
 - Escape task arguments, enqueuing user and error message in the task history.
 - Fix execution times lost in the history when the job starts before the history entry is stored.
 

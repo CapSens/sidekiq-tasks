@@ -32,7 +32,7 @@ RSpec.describe Sidekiq::Tasks::Strategies::Rules::EnableWithComment do
     end
 
     it "is respected when the task has a magic comment before the desc", :aggregate_failures do
-      task = instance_double(Rake::Task, name: "foo:bar", locations: ["foo.rb:3"], full_comment: "Bar")
+      task = instance_double(Rake::Task, name: "foo:bar", locations: ["foo.rb:4"], full_comment: "Bar")
 
       expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
         namespace :foo do
@@ -80,7 +80,7 @@ RSpec.describe Sidekiq::Tasks::Strategies::Rules::EnableWithComment do
 
     it "is respected when the task has a magic comment before the namespace", :aggregate_failures do
       bar_task = instance_double(Rake::Task, name: "foo:bar", locations: ["foo.rb:3"], full_comment: nil)
-      baz_task = instance_double(Rake::Task, name: "foo:baz", locations: ["foo.rb:8"], full_comment: nil)
+      baz_task = instance_double(Rake::Task, name: "foo:baz", locations: ["foo.rb:7"], full_comment: nil)
 
       expect(File).to receive(:read).exactly(2).times.with("foo.rb").and_return <<~RUBY
         # sidekiq-tasks:enable
@@ -237,7 +237,7 @@ RSpec.describe Sidekiq::Tasks::Strategies::Rules::EnableWithComment do
       task = instance_double(
         Rake::Task,
         name: "test:cleanup",
-        locations: ["test.rb:6"],
+        locations: ["test.rb:5"],
         full_comment: "Cleanup old records.\ndescribe which records to remove"
       )
 

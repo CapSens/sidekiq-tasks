@@ -168,6 +168,142 @@ RSpec.describe Sidekiq::Tasks::MagicComments::Scanner do
       )
     end
 
+    it "does not capture the magic comment of the previous one-line task" do
+      task = instance_double(Rake::Task, name: "foo:baz", locations: ["foo.rb:4"], full_comment: nil)
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        namespace :foo do
+          # sidekiq-tasks:dry_run
+          task :bar do; end
+          task :baz do
+          end
+        end
+      RUBY
+
+      expect(described_class.new.scan(task).to_a).to be_empty
+    end
+
+    it "does not capture a magic comment placed before another statement" do
+      task = instance_double(Rake::Task, name: "foo:bar", locations: ["foo.rb:4"], full_comment: nil)
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        namespace :foo do
+          # sidekiq-tasks:dry_run
+          BATCH_SIZE = 100
+          task :bar do
+          end
+        end
+      RUBY
+
+      expect(described_class.new.scan(task).to_a).to be_empty
+    end
+
+    it "does not capture a trailing magic comment of the previous line" do
+      task = instance_double(Rake::Task, name: "foo:bar", locations: ["foo.rb:3"], full_comment: nil)
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        namespace :foo do
+          BATCH_SIZE = 100 # sidekiq-tasks:enable
+          task :bar do
+          end
+        end
+      RUBY
+
+      expect(described_class.new.scan(task).to_a).to be_empty
+    end
+
+    it "does not capture the magic comment of a namespace with a similar name" do
+      task = instance_double(Rake::Task, name: "report:daily", locations: ["foo.rb:8"], full_comment: nil)
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        # sidekiq-tasks:enable
+        namespace :reports do
+          task :monthly do
+          end
+        end
+
+        namespace :report do
+          task :daily do
+          end
+        end
+      RUBY
+
+      expect(described_class.new.scan(task).to_a).to be_empty
+    end
+
+    it "captures the magic comments of every enclosing namespace", :aggregate_failures do
+      task = instance_double(Rake::Task, name: "foo:bar:baz", locations: ["foo.rb:8"], full_comment: nil)
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        # sidekiq-tasks:enable
+        namespace :foo do
+          # sidekiq-tasks:dry_run
+          namespace "bar" do
+            task :other do
+            end
+
+            task :baz do
+            end
+          end
+        end
+      RUBY
+
+      result = described_class.new.scan(task).to_a
+
+      expect(result.map(&:name)).to contain_exactly("dry_run", "enable")
+      expect(result.map(&:location)).to eq(%i[namespace namespace])
+    end
+
+    it "captures only the magic comments of the namespace block enclosing the task" do
+      task = instance_double(Rake::Task, name: "foo:baz", locations: ["foo.rb:8"], full_comment: nil)
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        # sidekiq-tasks:enable
+        namespace :foo do
+          task :bar do
+          end
+        end
+
+        namespace :foo do
+          task :baz do
+          end
+        end
+      RUBY
+
+      expect(described_class.new.scan(task).to_a).to be_empty
+    end
+
+    it "captures the magic comment of the namespace of a task defined in a loop" do
+      task = instance_double(Rake::Task, name: "foo:bar", locations: ["foo.rb:4"], full_comment: nil)
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        # sidekiq-tasks:enable
+        namespace :foo do
+          [:bar, :baz].each do |name|
+            task name do
+            end
+          end
+        end
+      RUBY
+
+      expect(described_class.new.scan(task).map(&:name)).to eq(["enable"])
+    end
+
+    it "captures a magic comment placed before a task defined on multiple lines" do
+      task = instance_double(Rake::Task, name: "foo:bar", locations: ["foo.rb:3"], full_comment: nil)
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        namespace :foo do
+          # sidekiq-tasks:enable
+          task :bar,
+               [:baz] => :environment do |_, args|
+          end
+        end
+      RUBY
+
+      expect(described_class.new.scan(task).map(&:name)).to eq(["enable"])
+    end
+
     it "ignores lines that look like comments inside other code" do
       task = instance_double(Rake::Task, name: "foo:bar", locations: ["foo.rb:3"], full_comment: nil)
 

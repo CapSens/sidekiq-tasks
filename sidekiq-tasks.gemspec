@@ -35,6 +35,8 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
+  # Ruby parser, used to read the magic comments of rake files.
+  spec.add_runtime_dependency "prism", "~> 1.5"
   spec.add_runtime_dependency "rake", ">= 13.0"
   spec.add_runtime_dependency "sidekiq", ">= 6.5"
 
