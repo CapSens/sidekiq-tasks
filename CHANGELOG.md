@@ -1,5 +1,9 @@
 ## Changelog
 
+### [Unreleased]
+
+- Fix execution times lost in the history when the job starts before the history entry is stored.
+
 ### [1.1.1] - 2026-04-12
 
 - Transfer repository ownership to Capsens organization.
