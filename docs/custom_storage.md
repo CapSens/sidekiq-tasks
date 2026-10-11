@@ -76,7 +76,24 @@ The `history` method must return an array of hashes with the following keys:
 
 ## Migrating from Redis
 
-After switching to a custom storage, you can clean up the old Redis history:
+To keep the history, add this one-off task in `lib/tasks/sidekiq_tasks_copy_redis_history.rake`, run it once after switching to the custom storage with `bin/rails sidekiq_tasks:copy_redis_history`, then delete it:
+
+```ruby
+namespace :sidekiq_tasks do
+  desc "Copy the sidekiq-tasks history from Redis to the database"
+  task copy_redis_history: :environment do
+    Sidekiq.redis { |conn| conn.keys("task:*:history") }.each do |history_key|
+      task_name = history_key.delete_prefix("task:").delete_suffix(":history")
+
+      Sidekiq::Tasks::Storage::Redis.new(task_name).history.each do |entry|
+        TaskExecution.create_or_find_by!(jid: entry["jid"]).update!(entry.slice(*TaskExecution.column_names))
+      end
+    end
+  end
+end
+```
+
+Then clean up the old Redis history:
 
 ```bash
 redis-cli --scan --pattern "task:*" | xargs redis-cli del
