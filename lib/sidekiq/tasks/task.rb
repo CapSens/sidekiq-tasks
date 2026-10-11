@@ -26,7 +26,11 @@ module Sidekiq
       def enqueue(params = {}, user: nil, dry_run: false)
         raise Sidekiq::Tasks::ArgumentError, "cannot enqueue broken task '#{name}': #{error}" if error?
 
-        jid = strategy.enqueue_task(name, params, sidekiq_options: sidekiq_options, dry_run: dry_run)
+        enqueue_options = {}
+        enqueue_options[:sidekiq_options] = sidekiq_options if sidekiq_options.any?
+        enqueue_options[:dry_run] = true if dry_run
+
+        jid = strategy.enqueue_task(name, params, **enqueue_options)
 
         storage.store_enqueue(jid, params, user: user)
         storage.store_dry_run(jid) if dry_run

@@ -218,7 +218,7 @@ You can also override the `enqueue_task` method to implement your own enqueuing 
 
 ```ruby
 class ScriptStrategy < Sidekiq::Tasks::Strategies::Base
-  def enqueue_task(name, params = {}, sidekiq_options: {}, dry_run: false)
+  def enqueue_task(name, params = {})
     ScriptJob.perform_async(name, params)
   end
 end
@@ -336,7 +336,7 @@ The report never makes a task fail. Outside of a Sidekiq::Tasks job, it is print
 
 > [!NOTE]
 > Custom strategies enable dry run mode by building their metadata with `dry_run: true`.
-> Those overriding `enqueue_task` must accept a `dry_run:` keyword argument and pass it to `Sidekiq::Tasks::Job` as its third argument.
+> Those overriding `enqueue_task` then receive a `dry_run: true` keyword argument, to pass to `Sidekiq::Tasks::Job` as its third argument.
 > Custom storages display the dry run badge and reports by implementing `store_dry_run` and `store_execution_report`, see the [Custom Storage Guide](docs/custom_storage.md).
 
 ## Current user

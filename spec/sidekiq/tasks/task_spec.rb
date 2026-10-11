@@ -75,7 +75,7 @@ RSpec.describe Sidekiq::Tasks::Task do
 
       expect(task.strategy).to(
         receive(:enqueue_task)
-          .with("foo:bar", {"foo" => "bar"}, sidekiq_options: {}, dry_run: false)
+          .with("foo:bar", {"foo" => "bar"})
           .and_return("a1b2c3")
       )
 
@@ -104,7 +104,7 @@ RSpec.describe Sidekiq::Tasks::Task do
 
       expect(task.strategy).to(
         receive(:enqueue_task)
-          .with("foo:bar", {"foo" => "bar"}, sidekiq_options: {}, dry_run: false)
+          .with("foo:bar", {"foo" => "bar"})
           .and_return("a1b2c3")
       )
 
@@ -121,7 +121,7 @@ RSpec.describe Sidekiq::Tasks::Task do
 
       expect(task.strategy).to(
         receive(:enqueue_task)
-          .with("foo:bar", {"foo" => "bar"}, sidekiq_options: {}, dry_run: false)
+          .with("foo:bar", {"foo" => "bar"})
           .and_return("a1b2c3")
       )
 
@@ -138,9 +138,17 @@ RSpec.describe Sidekiq::Tasks::Task do
 
       expect(task.strategy).to(
         receive(:enqueue_task)
-          .with("foo:bar", {"foo" => "bar"}, sidekiq_options: {queue: "critical", retry: 5}, dry_run: false)
+          .with("foo:bar", {"foo" => "bar"}, sidekiq_options: {queue: "critical", retry: 5})
           .and_return("a1b2c3")
       )
+
+      task.enqueue({"foo" => "bar"})
+    end
+
+    it "enqueues through a strategy overriding enqueue_task without the enqueue options" do
+      task = build_task(name: "foo:bar", args: ["foo"], strategy: build_strategy)
+
+      expect(task.strategy).to receive(:enqueue_task).with("foo:bar", {"foo" => "bar"}).and_call_original
 
       task.enqueue({"foo" => "bar"})
     end
@@ -160,7 +168,7 @@ RSpec.describe Sidekiq::Tasks::Task do
     it "enqueues the task in dry run mode and marks the history entry", :aggregate_failures do
       task = build_task(name: "foo:bar", args: ["foo"])
 
-      expect(task.strategy).to receive(:enqueue_task).with("foo:bar", {"foo" => "bar"}, sidekiq_options: {}, dry_run: true).and_return("a1b2c3")
+      expect(task.strategy).to receive(:enqueue_task).with("foo:bar", {"foo" => "bar"}, dry_run: true).and_return("a1b2c3")
       expect(task.storage).to receive(:store_enqueue).with("a1b2c3", {"foo" => "bar"}, user: nil)
       expect(task.storage).to receive(:store_dry_run).with("a1b2c3")
 

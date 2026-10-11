@@ -91,7 +91,7 @@ RSpec.describe "Task page", type: :feature do
     clear_redis
     strategy = Sidekiq::Tasks.tasks.find_by!(name: "tests:task_with_args").strategy
     expect(strategy).to(
-      receive(:enqueue_task).with("tests:task_with_args", {"name" => "Foo"}, sidekiq_options: {}, dry_run: false).and_call_original
+      receive(:enqueue_task).with("tests:task_with_args", {"name" => "Foo"}).and_call_original
     )
 
     visit "/tasks/tests-task_with_args"
@@ -112,7 +112,7 @@ RSpec.describe "Task page", type: :feature do
     clear_redis
     strategy = Sidekiq::Tasks.tasks.find_by!(name: "tests:task_without_args").strategy
     expect(strategy).to(
-      receive(:enqueue_task).with("tests:task_without_args", {}, sidekiq_options: {}, dry_run: false).and_call_original
+      receive(:enqueue_task).with("tests:task_without_args", {}).and_call_original
     )
 
     visit "/tasks/tests-task_without_args"
