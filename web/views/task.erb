@@ -112,7 +112,9 @@
             </td>
             <td class="st-report-values">
               <% (report["values"] || {}).each do |key, value| %>
-                <span class="st-report-value"><strong><%= key %></strong> <%= value %></span>
+                <span class="st-report-value">
+                  <strong><%= ERB::Util.html_escape(key) %></strong> <%= ERB::Util.html_escape(value) %>
+                </span>
               <% end %>
               <% if report["truncated"] %>
                 <small class="st-warning"><%= t("report_truncated") %></small>
@@ -127,7 +129,7 @@
                   <% report["lists"].each do |key, list| %>
                     <% columns = report_list_columns(list["items"]) %>
                     <h4>
-                      <%= key %> (<%= list["count"] %>)
+                      <%= ERB::Util.html_escape(key) %> (<%= list["count"] %>)
                       <% if list["items"].size < list["count"] %>
                         <small><%= t("report_items_shown", shown: list["items"].size, count: list["count"]) %></small>
                       <% end %>
@@ -136,16 +138,16 @@
                     <table class="st-table st-report-table">
                       <% if columns %>
                         <thead>
-                          <tr><% columns.each do |column| %><th><%= column %></th><% end %></tr>
+                          <tr><% columns.each do |column| %><th><%= ERB::Util.html_escape(column) %></th><% end %></tr>
                         </thead>
                       <% end %>
                       <tbody>
                         <% list["items"].each do |item| %>
                           <tr>
                             <% if columns %>
-                              <% columns.each do |column| %><td><%= item[column] %></td><% end %>
+                              <% columns.each do |column| %><td><%= ERB::Util.html_escape(item[column]) %></td><% end %>
                             <% else %>
-                              <td><%= item %></td>
+                              <td><%= ERB::Util.html_escape(item) %></td>
                             <% end %>
                           </tr>
                         <% end %>

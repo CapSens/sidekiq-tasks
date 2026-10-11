@@ -126,6 +126,34 @@ RSpec.describe "Sidekiq::Tasks::Web", type: :request do
       expect(last_response.body).not_to include(xss_payload)
       expect(last_response.body.scan("&lt;img src=x onerror=alert(1)&gt;").size).to eq(3)
     end
+
+    it "escapes the report in the HTML output", :aggregate_failures do
+      xss_payload = "<img src=x onerror=alert(1)>"
+      task = build_task(name: "foo:bar")
+
+      expect(Sidekiq::Tasks.tasks).to receive(:find_by!).with(name: "foo:bar").and_return(task)
+      expect(task).to receive(:history).and_return(
+        [
+          {
+            "jid" => "a1b2c3",
+            "enqueued_at" => Time.now,
+            "report" => {
+              "values" => {xss_payload => xss_payload},
+              "lists" => {
+                xss_payload => {"items" => [{xss_payload => xss_payload}], "count" => 1},
+                "scalars" => {"items" => [xss_payload], "count" => 1},
+              },
+            },
+          },
+        ]
+      )
+
+      get "/tasks/foo-bar"
+
+      expect(last_response.status).to eq(200)
+      expect(last_response.body).not_to include(xss_payload)
+      expect(last_response.body.scan("&lt;img src=x onerror=alert(1)&gt;").size).to eq(6)
+    end
   end
 
   describe "POST /tasks/:name/enqueue" do
