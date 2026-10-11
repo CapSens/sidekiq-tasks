@@ -11,6 +11,7 @@ module Sidekiq
           @comments_by_file = {}
         end
 
+        # @return [Comments] From the task to the outermost namespace, so that the closest comment wins.
         def scan(task)
           file, task_line = task.locations.first.split(":")
           @comments_by_file[file] ||= comments_by_task_line(file)
@@ -45,7 +46,7 @@ module Sidekiq
             if rake_call?(child, :task)
               annotated_calls[child.location.start_line] = task_annotated_calls(child, previous_child, namespace_calls)
             elsif rake_call?(child, :namespace)
-              annotated_calls_by_task_line(child, [*namespace_calls, [child, :namespace]], annotated_calls)
+              annotated_calls_by_task_line(child, [[child, :namespace], *namespace_calls], annotated_calls)
             else
               annotated_calls_by_task_line(child, namespace_calls, annotated_calls)
             end
@@ -57,7 +58,7 @@ module Sidekiq
         def task_annotated_calls(task_call, previous_child, namespace_calls)
           desc_calls = rake_call?(previous_child, :desc) ? [[previous_child, :desc]] : []
 
-          [*namespace_calls, *desc_calls, [task_call, :task]]
+          [[task_call, :task], *desc_calls, *namespace_calls]
         end
 
         def rake_call?(node, method_name)

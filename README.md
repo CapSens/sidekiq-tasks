@@ -209,6 +209,8 @@ task :generate_sales_report do
 end
 ```
 
+Placed before a namespace, it applies to all its tasks, and a task level comment takes precedence.
+
 The value is parsed as inline YAML and merged on top of the global `config.sidekiq_options` at enqueue time. Supported keys: `queue`, `retry`, `retry_for`, `dead`, `backtrace`, `pool`, `tags`.
 These keys are validated: an invalid value (e.g. `retry: abc`) displays the task as broken in the web interface, and it cannot be enqueued. Other keys are passed as is to Sidekiq, e.g. middleware options such as sidekiq-unique-jobs `lock: until_executed`.
 

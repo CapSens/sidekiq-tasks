@@ -74,6 +74,21 @@ RSpec.describe Sidekiq::Tasks::Strategies::RakeTask do
       expect(metadata.sidekiq_options).to eq(queue: "critical", retry: 5)
     end
 
+    it "prefers the task sidekiq_options over the namespace ones" do
+      rake_task = build_rake_task(name: "foo:bar", full_comment: nil, locations: ["foo.rb:4"], arg_names: [])
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        # sidekiq-tasks:sidekiq_options: queue: low, retry: 3
+        namespace :foo do
+          # sidekiq-tasks:sidekiq_options: queue: critical
+          task :bar do
+          end
+        end
+      RUBY
+
+      expect(described_class.new.build_task_metadata(rake_task).sidekiq_options).to eq(queue: "critical")
+    end
+
     it "returns a broken metadata when sidekiq_options YAML is invalid", :aggregate_failures do
       rake_task = build_rake_task(
         name: "foo:bar",

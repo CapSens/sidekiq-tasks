@@ -212,6 +212,24 @@ RSpec.describe Sidekiq::Tasks::MagicComments::Scanner do
       expect(described_class.new.scan(task).to_a).to be_empty
     end
 
+    it "returns the magic comments from the most specific location to the least specific" do
+      task = instance_double(Rake::Task, name: "foo:bar", locations: ["foo.rb:7"], full_comment: "Bar")
+
+      expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
+        # sidekiq-tasks:sidekiq_options: queue: low
+        namespace :foo do
+          # sidekiq-tasks:sidekiq_options: queue: default
+          desc "Bar"
+
+          # sidekiq-tasks:sidekiq_options: queue: critical
+          task :bar do
+          end
+        end
+      RUBY
+
+      expect(described_class.new.scan(task).map(&:location)).to eq(%i[task desc namespace])
+    end
+
     it "does not capture the magic comment of a namespace with a similar name" do
       task = instance_double(Rake::Task, name: "report:daily", locations: ["foo.rb:8"], full_comment: nil)
 
@@ -231,7 +249,7 @@ RSpec.describe Sidekiq::Tasks::MagicComments::Scanner do
       expect(described_class.new.scan(task).to_a).to be_empty
     end
 
-    it "captures the magic comments of every enclosing namespace", :aggregate_failures do
+    it "captures the magic comments of every enclosing namespace from the innermost", :aggregate_failures do
       task = instance_double(Rake::Task, name: "foo:bar:baz", locations: ["foo.rb:8"], full_comment: nil)
 
       expect(File).to receive(:read).with("foo.rb").and_return <<~RUBY
@@ -250,7 +268,7 @@ RSpec.describe Sidekiq::Tasks::MagicComments::Scanner do
 
       result = described_class.new.scan(task).to_a
 
-      expect(result.map(&:name)).to contain_exactly("dry_run", "enable")
+      expect(result.map(&:name)).to eq(["dry_run", "enable"])
       expect(result.map(&:location)).to eq(%i[namespace namespace])
     end
 
