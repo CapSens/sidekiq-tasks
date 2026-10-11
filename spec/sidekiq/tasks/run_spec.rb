@@ -58,6 +58,20 @@ RSpec.describe Sidekiq::Tasks::Report do
     expect(report.to_h).to eq({"values" => {"total" => 3, "success" => 3}, "lists" => {}})
   end
 
+  it "stores non finite floats as strings to keep the report serializable" do
+    report = described_class.new
+    report[:ratio] = 0 / 0.0
+    report.increment(:duration, Float::INFINITY)
+    report.add(:rows, {ratio: -Float::INFINITY})
+
+    expect(report.to_h).to eq(
+      {
+        "values" => {"ratio" => "NaN", "duration" => "Infinity"},
+        "lists" => {"rows" => {"items" => [{"ratio" => "-Infinity"}], "count" => 1}},
+      }
+    )
+  end
+
   it "keeps list items with an exact count" do
     report = described_class.new
     3.times { |index| report.add(:failed, {id: index}) }

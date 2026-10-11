@@ -65,7 +65,7 @@ module Sidekiq
 
       def increment(key, by = 1)
         key = sanitize_key(key)
-        @values[key] = (@values[key] || 0) + by if accept_key?(@values, key)
+        @values[key] = sanitize_scalar((@values[key] || 0) + by) if accept_key?(@values, key)
       end
 
       # Adds an item (a scalar or a flat Hash) to a list.
@@ -145,6 +145,7 @@ module Sidekiq
 
       def sanitize_scalar(value)
         case value
+        when Float then value.finite? ? value : value.to_s
         when Numeric, TrueClass, FalseClass, NilClass then value
         else truncate(value.to_s)
         end
