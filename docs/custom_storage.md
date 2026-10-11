@@ -82,7 +82,7 @@ Two optional keys are displayed when present:
 | `"report"`  | Hash \| nil   | The execution report, see `Sidekiq::Tasks::Report#to_h`      |
 
 They are stored through `store_dry_run(jid)` and `store_execution_report(jid, report)`, which do nothing by default.
-Override them to support dry run badges and reports, e.g. with `dry_run:boolean` and `report:jsonb` columns:
+Override them to support dry run badges and reports, e.g. with `dry_run:boolean` and `report:jsonb` columns, also added to the `history` select:
 
 ```ruby
 def store_dry_run(jid)
