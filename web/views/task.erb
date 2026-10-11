@@ -64,11 +64,11 @@
           <tr>
             <td><%= jid_history["jid"] %></td>
             <td>
-              <code><%= jid_history["args"] %></code>
+              <code><%= ERB::Util.html_escape(jid_history["args"]) %></code>
             </td>
             <% if Sidekiq::Tasks.config.current_user %>
               <td>
-                <code><%= jid_history["user"] || "-" %></code>
+                <code><%= ERB::Util.html_escape(jid_history["user"] || "-") %></code>
               </td>
             <% end %>
             <td>
