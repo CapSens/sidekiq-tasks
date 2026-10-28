@@ -7,7 +7,7 @@ This guide walks you through implementing a custom storage backend using ActiveR
 ```bash
 rails generate model TaskExecution \
   task_name:string:index \
-  jid:string:index \
+  jid:string:uniq \
   args:jsonb \
   enqueued_at:datetime \
   executed_at:datetime \
@@ -38,22 +38,16 @@ class ActiveRecordStorage < Sidekiq::Tasks::Storage::Base
   end
 
   def store_enqueue(jid, args, user: nil)
-    TaskExecution.create!(
-      task_name: task_name,
-      jid: jid,
-      args: args,
-      enqueued_at: Time.now,
-      user: user
-    )
+    TaskExecution.create_or_find_by!(jid: jid).update!(task_name: task_name, args: args, enqueued_at: Time.now, user: user)
   end
 
   def store_execution(jid, time_key)
-    TaskExecution.find_by(jid: jid)&.update!(time_key => Time.now)
+    TaskExecution.create_or_find_by!(jid: jid).update!(time_key => Time.now)
   end
 
   def store_execution_error(jid, error)
     message = truncate_message("#{error.class}: #{error.message}", ERROR_MESSAGE_MAX_LENGTH)
-    TaskExecution.find_by(jid: jid)&.update!(error: message)
+    TaskExecution.create_or_find_by!(jid: jid).update!(error: message)
   end
 end
 
@@ -92,11 +86,11 @@ Override them to support dry run badges and reports, e.g. with `dry_run:boolean`
 
 ```ruby
 def store_dry_run(jid)
-  TaskExecution.find_by(jid: jid)&.update!(dry_run: true)
+  TaskExecution.create_or_find_by!(jid: jid).update!(dry_run: true)
 end
 
 def store_execution_report(jid, report)
-  TaskExecution.find_by(jid: jid)&.update!(report: report)
+  TaskExecution.create_or_find_by!(jid: jid).update!(report: report)
 end
 ```
 
@@ -104,7 +98,24 @@ Reports are bounded by `config.report_max_bytes` (default: 64 KB, maximum: 1 MB)
 
 ## Migrating from Redis
 
-After switching to a custom storage, you can clean up the old Redis history:
+To keep the history, add this one-off task in `lib/tasks/sidekiq_tasks_copy_redis_history.rake`, run it once after switching to the custom storage with `bin/rails sidekiq_tasks:copy_redis_history`, then delete it:
+
+```ruby
+namespace :sidekiq_tasks do
+  desc "Copy the sidekiq-tasks history from Redis to the database"
+  task copy_redis_history: :environment do
+    Sidekiq.redis { |conn| conn.keys("task:*:history") }.each do |history_key|
+      task_name = history_key.delete_prefix("task:").delete_suffix(":history")
+
+      Sidekiq::Tasks::Storage::Redis.new(task_name).history.each do |entry|
+        TaskExecution.create_or_find_by!(jid: entry["jid"]).update!(entry.slice(*TaskExecution.column_names))
+      end
+    end
+  end
+end
+```
+
+Then clean up the old Redis history:
 
 ```bash
 redis-cli --scan --pattern "task:*" | xargs redis-cli del

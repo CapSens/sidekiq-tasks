@@ -6,7 +6,7 @@ module Sidekiq
           extend self
 
           def build_tag(tag, content = nil, **attributes, &block)
-            attr_string = attributes.map { |key, value| "#{key}=\"#{value}\"" }.join(" ")
+            attr_string = attributes.map { |key, value| "#{key}=\"#{ERB::Util.html_escape(value)}\"" }.join(" ")
             attr_string = " #{attr_string}" unless attr_string.empty?
 
             "<#{tag}#{attr_string}>#{block&.call || content}</#{tag}>"

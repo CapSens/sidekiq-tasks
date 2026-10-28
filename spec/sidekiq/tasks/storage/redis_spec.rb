@@ -49,8 +49,9 @@ RSpec.describe Sidekiq::Tasks::Storage::Redis do
         enqueued_at: Time.new(2025, 1, 1, 12, 0, 0, "+00:00").to_f,
       }
 
+      clear_redis
       tasks_history = [first_task_trace, second_task_trace].map { |task_trace| Sidekiq.dump_json(task_trace) }
-      allow(Sidekiq).to receive(:redis).and_yield(double(lrange: tasks_history, ltrim: []))
+      Sidekiq.redis { |conn| conn.rpush("task:foo:bar:history", tasks_history) }
 
       expect(described_class.new("foo:bar").history).to eq(
         [
@@ -139,6 +140,19 @@ RSpec.describe Sidekiq::Tasks::Storage::Redis do
       expect(storage.history.size).to eq(storage.history_limit)
       expect(storage.history.map { |task_trace| task_trace["jid"] }).to eq(["a1b2c3", "jid_2", "jid_1"])
     end
+
+    it "deletes the execution of the entries removed from the history", :aggregate_failures do
+      3.times { |index| storage.store_enqueue("jid_#{index}", {}) }
+      storage.store_execution("jid_0", "executed_at")
+      storage.store_execution("jid_1", "executed_at")
+
+      storage.store_enqueue("a1b2c3", {})
+
+      Sidekiq.redis do |conn|
+        expect(conn.exists("task:foo:bar:execution:jid_0")).to eq(0)
+        expect(conn.exists("task:foo:bar:execution:jid_1")).to eq(1)
+      end
+    end
   end
 
   describe "#store_enqueue" do
@@ -205,9 +219,29 @@ RSpec.describe Sidekiq::Tasks::Storage::Redis do
       )
     end
 
-    it "does nothing when the task is not found", :aggregate_failures do
+    it "stores the execution when it happens before the enqueue", :aggregate_failures do
+      storage = described_class.new("foo:bar", history_limit: 10)
+
+      storage.store_execution("a1b2c3", "executed_at")
+      storage.store_execution_error("a1b2c3", StandardError.new("An error occurred"))
+      storage.store_enqueue("a1b2c3", {"bar" => "baz"})
+
+      expect(storage.history.first["executed_at"]).to be_a(Time)
+      expect(storage.history.first["error"]).to eq("StandardError: An error occurred")
+    end
+
+    it "reads the execution stored in the history entry by previous versions" do
+      executed_at = Time.new(2025, 1, 1, 12, 0, 0, "+00:00")
+      Sidekiq.redis do |conn|
+        conn.lpush("task:foo:bar:history", Sidekiq.dump_json({jid: "a1b2c3", executed_at: executed_at.to_f}))
+      end
+
+      expect(described_class.new("foo:bar").history.first["executed_at"]).to eq(executed_at)
+    end
+
+    it "does not alter the history entry of another jid", :aggregate_failures do
       current_time = Time.now
-      expect(Time).to receive(:now).and_return(current_time)
+      allow(Time).to receive(:now).and_return(current_time)
       storage = described_class.new("foo:bar", history_limit: 10)
       storage.store_enqueue("a1b2c3", {"bar" => "baz"})
 
