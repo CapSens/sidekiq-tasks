@@ -1,6 +1,6 @@
 ## Changelog
 
-### [Unreleased]
+### [1.2.0] - 2026-10-28
 
 - Add per-task `sidekiq_options` magic comment to override the global options at enqueue time, displayed on the task detail page.
 - Render tasks with an invalid magic comment as a broken state in the web UI instead of crashing the tasks list.
@@ -10,6 +10,7 @@
 - Add a configurable `report_max_bytes` option (default: 64 KB, maximum: 1 MB) bounding the report size. The Redis storage also keeps the reports of a task history within 10 MB.
 - Fix detection of stacked magic comments placed before a `desc` or a `namespace`.
 - Fix magic comments leaking to a neighbour task or a similarly named namespace, and support nested namespaces.
+- Magic comments must now be alone on their line, right above the `task`, `desc` or `namespace` call, with no blank line in between.
 - Escape task arguments, enqueuing user and error message in the task history.
 - Fix execution times lost in the history when the job starts before the history entry is stored.
 
