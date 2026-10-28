@@ -2,6 +2,7 @@
 
 ### [Unreleased]
 
+- Escape task arguments, enqueuing user and error message in the task history.
 - Fix execution times lost in the history when the job starts before the history entry is stored.
 
 ### [1.1.1] - 2026-04-12
