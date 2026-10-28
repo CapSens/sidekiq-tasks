@@ -11,22 +11,20 @@ module Sidekiq
           "#{jid_key}:history"
         end
 
+        def execution_key(jid)
+          "#{jid_key}:execution:#{jid}"
+        end
+
         def last_enqueue_at
           stored_time("last_enqueue_at")
         end
 
         def history
-          raw_entries = Sidekiq.redis { |conn| conn.lrange(history_key, 0, -1) }
+          entries = Sidekiq.redis { |conn| conn.lrange(history_key, 0, -1) }.map { |raw| Sidekiq.load_json(raw) }
 
-          return [] unless raw_entries
+          return [] if entries.empty?
 
-          raw_entries.map do |raw|
-            entry = Sidekiq.load_json(raw)
-            ["enqueued_at", "executed_at", "finished_at"].each do |key|
-              entry[key] = Time.at(entry[key]) if entry[key]
-            end
-            entry
-          end
+          entries.zip(executions(entries)).map { |entry, execution| parse_times(entry.merge(execution)) }
         end
 
         def store_history(jid, task_args, time, user: nil)
@@ -34,6 +32,7 @@ module Sidekiq
             task_trace = {jid: jid, task_name: task_name, args: task_args, enqueued_at: time.to_f}
             task_trace[:user] = user if user
             conn.lpush(history_key, Sidekiq.dump_json(task_trace))
+            delete_executions(conn, conn.lrange(history_key, history_limit, -1))
             conn.ltrim(history_key, 0, history_limit - 1)
           end
         end
@@ -45,16 +44,12 @@ module Sidekiq
         end
 
         def store_execution(jid, time_key)
-          update_history_entry(jid) do |entry|
-            entry.merge(time_key => Time.now.to_f)
-          end
+          Sidekiq.redis { |conn| conn.hset(execution_key(jid), time_key, Time.now.to_f) }
         end
 
         def store_execution_error(jid, error)
-          update_history_entry(jid) do |entry|
-            error_message = truncate_message("#{error.class}: #{error.message}", ERROR_MESSAGE_MAX_LENGTH)
-            entry.merge("error" => error_message)
-          end
+          error_message = truncate_message("#{error.class}: #{error.message}", ERROR_MESSAGE_MAX_LENGTH)
+          Sidekiq.redis { |conn| conn.hset(execution_key(jid), "error", error_message) }
         end
 
         private
@@ -69,19 +64,26 @@ module Sidekiq
           [nil, ""].include?(timestamp) ? nil : Time.at(timestamp.to_f)
         end
 
-        def update_history_entry(jid)
+        def executions(entries)
           Sidekiq.redis do |conn|
-            entries = conn.lrange(history_key, 0, -1)
-
-            entries.each_with_index do |raw, index|
-              entry = Sidekiq.load_json(raw)
-              next unless entry["jid"] == jid
-
-              updated_entry = yield(entry)
-              conn.lset(history_key, index, Sidekiq.dump_json(updated_entry))
-              break
+            conn.pipelined do |pipeline|
+              entries.each { |entry| pipeline.hgetall(execution_key(entry["jid"])) }
             end
           end
+        end
+
+        def parse_times(entry)
+          ["enqueued_at", "executed_at", "finished_at"].each do |key|
+            entry[key] = Time.at(entry[key].to_f) if entry[key]
+          end
+
+          entry
+        end
+
+        def delete_executions(conn, raw_entries)
+          return if raw_entries.empty?
+
+          conn.del(*raw_entries.map { |raw| execution_key(Sidekiq.load_json(raw)["jid"]) })
         end
       end
     end
