@@ -2,6 +2,14 @@
 
 ### [Unreleased]
 
+- Add per-task `sidekiq_options` magic comment to override the global options at enqueue time, displayed on the task detail page.
+- Render tasks with an invalid magic comment as a broken state in the web UI instead of crashing the tasks list.
+- Validate the values of the supported keys of the `sidekiq_options` magic comment, other keys are passed as is to Sidekiq.
+- Add dry run mode: tasks with the `sidekiq-tasks:dry_run` magic comment get a "Dry run" checkbox, checked by default, and read it with `Sidekiq::Tasks.dry_run?`.
+- Add structured execution reports (`Sidekiq::Tasks.report`) displayed in the task history.
+- Add a configurable `report_max_bytes` option (default: 64 KB, maximum: 1 MB) bounding the report size. The Redis storage also keeps the reports of a task history within 10 MB.
+- Fix detection of stacked magic comments placed before a `desc` or a `namespace`.
+- Fix magic comments leaking to a neighbour task or a similarly named namespace, and support nested namespaces.
 - Escape task arguments, enqueuing user and error message in the task history.
 - Fix execution times lost in the history when the job starts before the history entry is stored.
 

@@ -306,4 +306,35 @@ RSpec.describe Sidekiq::Tasks::Storage::Redis do
       )
     end
   end
+
+  describe "#store_dry_run and #store_execution_report" do
+    before { clear_redis }
+
+    it "stores the dry run flag and the report in the history entry" do
+      storage = described_class.new("foo:bar", history_limit: 10)
+      storage.store_enqueue("a1b2c3", {})
+      storage.store_dry_run("a1b2c3")
+      storage.store_execution_report(
+        "a1b2c3",
+        {"values" => {"success" => 2}, "lists" => {"failed" => {"items" => [{"id" => 1}], "count" => 1}}}
+      )
+
+      expect(storage.history.first).to include(
+        "dry_run" => true,
+        "report" => {"values" => {"success" => 2}, "lists" => {"failed" => {"items" => [{"id" => 1}], "count" => 1}}}
+      )
+    end
+  end
+
+  describe "#report_max_bytes" do
+    it "returns the configured report_max_bytes within the task reports budget", :aggregate_failures do
+      allow(Sidekiq::Tasks.config).to receive(:report_max_bytes).and_return(1024 * 1024)
+
+      expect(described_class.new("foo:bar", history_limit: 10).report_max_bytes).to eq(1024 * 1024)
+      expect(described_class.new("foo:bar", history_limit: 100).report_max_bytes).to eq(104_857)
+      expect(described_class.new("foo:bar", history_limit: 1_000).report_max_bytes * 1_000).to(
+        be <= described_class::TASK_REPORTS_BUDGET
+      )
+    end
+  end
 end

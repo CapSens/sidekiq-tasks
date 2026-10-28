@@ -60,4 +60,22 @@ RSpec.describe Sidekiq::Tasks do
       expect(set.object_id).to eq(described_class.tasks.object_id)
     end
   end
+
+  describe ".current_run" do
+    it "returns the run of the task being executed" do
+      run = Sidekiq::Tasks::Run.new(dry_run: true)
+      Sidekiq::Tasks::Run.with(run) { expect(described_class.current_run).to eq(run) }
+    end
+  end
+
+  describe ".dry_run? and .report" do
+    it "delegate to the current run", :aggregate_failures do
+      run = Sidekiq::Tasks::Run.new(dry_run: true)
+
+      Sidekiq::Tasks::Run.with(run) do
+        expect(described_class.dry_run?).to eq(true)
+        expect(described_class.report).to eq(run.report)
+      end
+    end
+  end
 end

@@ -77,4 +77,38 @@ RSpec.describe Sidekiq::Tasks::Web::Helpers::TaskHelper do
       expect(described_class.format_task_duration(start_time, end_time)).to eq("420ms")
     end
   end
+
+  describe "#format_task_sidekiq_options" do
+    it "formats the task overrides as a oneline string", :aggregate_failures do
+      task = build_task(sidekiq_options: {queue: "critical", retry: 5})
+
+      expect(described_class.format_task_sidekiq_options(task)).to eq("queue: critical, retry: 5")
+    end
+
+    it "returns an empty string when the task has no override" do
+      expect(described_class.format_task_sidekiq_options(build_task(sidekiq_options: {}))).to eq("")
+    end
+
+    it "wraps array values in brackets" do
+      task = build_task(sidekiq_options: {tags: ["daily", "critical"]})
+
+      expect(described_class.format_task_sidekiq_options(task)).to eq("tags: [daily, critical]")
+    end
+  end
+
+  describe "#format_sidekiq_option_value" do
+    it "wraps arrays in brackets" do
+      expect(described_class.format_sidekiq_option_value(["a", "b"])).to eq("[a, b]")
+    end
+
+    it "returns '-' for nil" do
+      expect(described_class.format_sidekiq_option_value(nil)).to eq("-")
+    end
+
+    it "stringifies other values", :aggregate_failures do
+      expect(described_class.format_sidekiq_option_value("critical")).to eq("critical")
+      expect(described_class.format_sidekiq_option_value(5)).to eq("5")
+      expect(described_class.format_sidekiq_option_value(false)).to eq("false")
+    end
+  end
 end

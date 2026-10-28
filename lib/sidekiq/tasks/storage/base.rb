@@ -60,6 +60,28 @@ module Sidekiq
           raise NotImplementedError, "Storage must implement #store_execution_error"
         end
 
+        # Marks a history entry as a dry run.
+        # Optional: storages that don't implement it simply don't display the dry run badge.
+        #
+        # @param jid [String] The Sidekiq job ID.
+        def store_dry_run(_jid)
+        end
+
+        # Stores the execution report for a specific history entry.
+        # Optional: storages that don't implement it simply don't display reports.
+        #
+        # @param jid [String] The Sidekiq job ID.
+        # @param report [Hash] The report, see Sidekiq::Tasks::Report#to_h.
+        def store_execution_report(_jid, _report)
+        end
+
+        # The maximum size of a stored report, lowered by storages with their own memory constraints.
+        #
+        # @return [Integer]
+        def report_max_bytes
+          Sidekiq::Tasks.config.report_max_bytes
+        end
+
         protected
 
         def truncate_message(message, max_length)

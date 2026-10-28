@@ -3,6 +3,10 @@ module Sidekiq
     module Storage
       class Redis < Base
         JID_PREFIX = "task".freeze
+
+        # Maximum size of the reports stored in the history of a task, whatever the history_limit.
+        TASK_REPORTS_BUDGET = 10 * 1024 * 1024
+
         def jid_key
           "#{JID_PREFIX}:#{task_name}"
         end
@@ -24,7 +28,7 @@ module Sidekiq
 
           return [] if entries.empty?
 
-          entries.zip(executions(entries)).map { |entry, execution| parse_times(entry.merge(execution)) }
+          entries.zip(executions(entries)).map { |entry, execution| parse_entry(entry.merge(execution)) }
         end
 
         def store_history(jid, task_args, time, user: nil)
@@ -52,6 +56,18 @@ module Sidekiq
           Sidekiq.redis { |conn| conn.hset(execution_key(jid), "error", error_message) }
         end
 
+        def store_dry_run(jid)
+          Sidekiq.redis { |conn| conn.hset(execution_key(jid), "dry_run", Sidekiq.dump_json(true)) }
+        end
+
+        def store_execution_report(jid, report)
+          Sidekiq.redis { |conn| conn.hset(execution_key(jid), "report", Sidekiq.dump_json(report)) }
+        end
+
+        def report_max_bytes
+          [super, TASK_REPORTS_BUDGET / history_limit].min
+        end
+
         private
 
         def store_time(time, time_key)
@@ -72,9 +88,12 @@ module Sidekiq
           end
         end
 
-        def parse_times(entry)
+        def parse_entry(entry)
           ["enqueued_at", "executed_at", "finished_at"].each do |key|
             entry[key] = Time.at(entry[key].to_f) if entry[key]
+          end
+          ["dry_run", "report"].each do |key|
+            entry[key] = Sidekiq.load_json(entry[key]) if entry[key]
           end
 
           entry

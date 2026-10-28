@@ -9,8 +9,8 @@ module Sidekiq
 
           protected
 
-          def magic_comment_regex
-            /sidekiq-tasks:disable/
+          def magic_comment_token
+            Sidekiq::Tasks::MagicComments::Handlers::Disable.name_token
           end
         end
       end

@@ -74,6 +74,28 @@ The `history` method must return an array of hashes with the following keys:
 | `"error"`       | String \| nil | Error message if execution failed    |
 | `"user"`        | Hash \| nil   | User who enqueued the task           |
 
+Two optional keys are displayed when present:
+
+| Key         | Type          | Description                                                  |
+|-------------|---------------|--------------------------------------------------------------|
+| `"dry_run"` | Boolean       | Whether the task was executed in dry run mode                |
+| `"report"`  | Hash \| nil   | The execution report, see `Sidekiq::Tasks::Report#to_h`      |
+
+They are stored through `store_dry_run(jid)` and `store_execution_report(jid, report)`, which do nothing by default.
+Override them to support dry run badges and reports, e.g. with `dry_run:boolean` and `report:jsonb` columns, also added to the `history` select:
+
+```ruby
+def store_dry_run(jid)
+  TaskExecution.create_or_find_by!(jid: jid).update!(dry_run: true)
+end
+
+def store_execution_report(jid, report)
+  TaskExecution.create_or_find_by!(jid: jid).update!(report: report)
+end
+```
+
+Reports are bounded by `config.report_max_bytes` (default: 64 KB, maximum: 1 MB). The 10 MB budget of the Redis storage for the reports of a task history does not apply to custom storages.
+
 ## Migrating from Redis
 
 To keep the history, add this one-off task in `lib/tasks/sidekiq_tasks_copy_redis_history.rake`, run it once after switching to the custom storage with `bin/rails sidekiq_tasks:copy_redis_history`, then delete it:
